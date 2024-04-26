@@ -97,10 +97,52 @@ def reorder_topic(topic_name, new_pos):
     conn.commit()
     conn.close()
 
+# Function to insert rows into the database
+def insert_rows(rows):
+    # Connect to the SQLite database
+    conn = sqlite3.connect('topic.db')
+    c = conn.cursor()
+
+    for row in rows:
+        try :
+            c.execute('''INSERT INTO topics (position,topic_name, category,resource) 
+                        VALUES (? , ?, ?, ?)''', (row))
+        except:
+            pass  
+
+    conn.commit()
+    conn.close()
+
+def delete_rows():
+    conn = sqlite3.connect('topic.db')
+    c = conn.cursor()
+
+    c.execute("DELETE FROM topics")
+
+    conn.commit()
+    conn.close()
+
+# Function to display the upload button and process the uploaded file
+def upload_and_process():
+    uploaded_file = st.sidebar.file_uploader("Upload Data", type=['csv'])
+    if uploaded_file is not None:
+        # Read the CSV file
+        df = pd.read_csv(uploaded_file)
+        rows = [tuple(row) for row in df.values]
+
+        delete_rows()
+        insert_rows(rows)
+        st.sidebar.success("Data added successfully!")
+
+
 # Create database table if not exists
 create_table()
 
 def main():
+
+    upload_and_process()
+
+    st.sidebar.markdown("***")
     st.sidebar.title("Input Topic Data")
     category = st.sidebar.selectbox("Category",('ML','DL','NLP','CV','Stats','Technologies','Documentation'))
     topic_name = st.sidebar.text_input("Topic name")
@@ -142,8 +184,19 @@ def main():
         
         st.title('Topic Resource Assistant')
         df = pd.DataFrame(topics, columns=["Position","Topic Name", "Category", "Resource"])
-
         df.sort_values(by=['Category','Position'],inplace=True)
+
+         # Add a button to download the CSV file
+        csv = df.to_csv(index=False).encode('utf-8')
+
+        # Offer the CSV file for download
+        st.sidebar.markdown("***")
+        st.sidebar.download_button(
+            label="Download Data",
+            data=csv,
+            file_name='topic-resource.csv',
+            mime='text/csv'
+        )  
 
         # Filter topics based on selected date
         if filter_category is not None:
@@ -156,11 +209,11 @@ def main():
             if len(df_filter1)!=0:
                 # Create DataFrame from matched topic names and column names
                 st.markdown("***")
-                st.title(f'Topics In {filter_category}')
+                st.title(f'Topics : {filter_category}')
                 st.table(df_filter1)
             else:
                 st.markdown("***")
-                st.title(f'Topics In {filter_category}')
+                st.title(f'Topics : {filter_category}')
                 st.write("No topics added!")
         else :
             st.markdown("***")
@@ -183,12 +236,14 @@ def main():
         st.markdown("***")
         counts = df.groupby('Category').size().reset_index(name='Count')
         fig = px.pie(counts, values='Count', names='Category', title='Counts of Categories')
-
-        st.plotly_chart(fig)    
+        st.title('Topic Category Distribution')
+        st.plotly_chart(fig)  
 
     else:
         st.markdown("***")
         st.write("No topics found in the database.")
+
+
 
 if __name__ == "__main__":
     main()
