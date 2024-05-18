@@ -16,10 +16,15 @@ def create_table():
                  topic_name TEXT UNIQUE NOT NULL,
                  entry_date DATE NOT NULL,
                  revision_1 DATE NOT NULL,
+                 done_1 INTEGER NOT NULL,
                  revision_2 DATE NOT NULL,
+                 done_2 INTEGER NOT NULL, 
                  revision_3 DATE NOT NULL,
+                 done_3 INTEGER NOT NULL,
                  revision_4 DATE NOT NULL,
-                 revision_5 DATE NOT NULL)''')
+                 done_4 INTEGER NOT NULL,
+                 revision_5 DATE NOT NULL,
+                 done_5 INTEGER NOT NULL)''')
     conn.commit()
     conn.close()
 
@@ -27,9 +32,9 @@ def create_table():
 def insert_topic(topic_name, entry_date, revision_dates):
     conn = sqlite3.connect("revision_schedule.db")
     c = conn.cursor()
-    c.execute('''INSERT OR REPLACE INTO topics (topic_name, entry_date, revision_1, revision_2, revision_3, revision_4, revision_5) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)''', 
-                (topic_name, entry_date, revision_dates[0], revision_dates[1], revision_dates[2], revision_dates[3], revision_dates[4]))
+    c.execute('''INSERT OR REPLACE INTO topics (topic_name, entry_date, revision_1,  done_1,revision_2,done_2, revision_3,done_3, revision_4,done_4, revision_5,done_5) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?,?, ?, ?, ?, ?)''', 
+                (topic_name, entry_date, revision_dates[0],0,revision_dates[1],0, revision_dates[2],0, revision_dates[3],0, revision_dates[4],0))
     conn.commit()
     conn.close()
 
@@ -45,16 +50,25 @@ def remove_entry_by_topic(topic_name):
 def retrieve_topics():
     conn = sqlite3.connect("revision_schedule.db")
     c = conn.cursor()
-    c.execute("SELECT topic_name, revision_1, revision_2, revision_3, revision_4, revision_5 FROM topics")
+    c.execute("SELECT topic_name, revision_1,done_1, revision_2,done_2, revision_3,done_3, revision_4,done_4, revision_5,done_4 FROM topics")
     topics = c.fetchall()
     conn.close()
     return topics
+
+# Function to update revision done 
+def update_revision_completion(topic_done,col_to_update):
+    conn = sqlite3.connect("revision_schedule.db")
+    c = conn.cursor()
+    sql = f"UPDATE topics SET {col_to_update}=1 WHERE topic_name=?"
+    c.execute(sql, (topic_done,))
+    conn.commit()
+    conn.close()
 
 # Function to generate revision chart for all topics
 def generate_revision_chart(topics):
     fig = go.Figure()
     for topic in topics:
-        topic_name, revision_dates = topic[0], topic[1:]
+        topic_name, revision_dates = topic[0], topic[1::2]
         revision_numbers = list(range(1, 6))
         fig.add_trace(go.Scatter(x=revision_dates, y=revision_numbers, mode='lines+markers', name=topic_name))
     fig.update_layout(
@@ -105,15 +119,30 @@ def main():
     topics = retrieve_topics()
     
     if topics:
-
+        
         fig = generate_revision_chart(topics)
         st.title("Revision Schedule")
         st.plotly_chart(fig, use_container_width=True)
         
         # Filter topics based on selected date
-        df = pd.DataFrame(topics, columns=["Topic Name", "Revision 1", "Revision 2", "Revision 3", "Revision 4", "Revision 5"])
+        df = pd.DataFrame(topics, columns=["Topic Name", "Revision 1", "Done 1 ","Revision 2", "Done 2", "Revision 3",  "Done 3", "Revision 4",  "Done 4", 
+                                           "Revision 5", "Done 5"])
         st.title('Topic Data')
         st.write(df)
+
+        # Add revision done
+        st.sidebar.markdown("***")
+        topic_done = st.sidebar.selectbox('Select topic name:', df['Topic Name'].tolist())
+        if topic_done:
+            temp_df = df[df['Topic Name']==topic_done]
+            done_date = st.sidebar.selectbox('Select completion date: ', temp_df[["Revision 1","Revision 2", "Revision 3", "Revision 4","Revision 5"]].iloc[0])            
+            mark_done = st.sidebar.button("Mark done")
+
+            if mark_done:
+                rev_no = temp_df.columns[temp_df.eq(done_date).any()].to_list()
+                col_to_update = f'done_{rev_no[0].split(" ")[1]}'
+                update_revision_completion(topic_done,col_to_update)
+                st.experimental_rerun()
 
         # Initialize lists to store matched topic names and column names
         matched_topic_names = []
